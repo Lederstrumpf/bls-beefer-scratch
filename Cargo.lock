@@ -4260,6 +4260,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "mmr-gadget"
+version = "35.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "663618e90cf942896a983beeec6bd1c4b25f30cabc1a54d16627866611dd7088"
+dependencies = [
+ "futures",
+ "log",
+ "parity-scale-codec",
+ "sc-client-api",
+ "sc-offchain",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-beefy",
+ "sp-core",
+ "sp-mmr-primitives",
+ "sp-runtime",
+]
+
+[[package]]
 name = "mockall"
 version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7948,6 +7968,7 @@ dependencies = [
  "frame-system",
  "futures",
  "jsonrpsee",
+ "mmr-gadget",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "sc-basic-authorship",
@@ -7971,11 +7992,13 @@ dependencies = [
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus-aura",
+ "sp-consensus-beefy",
  "sp-consensus-grandpa",
  "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-mmr-primitives",
  "sp-runtime",
  "sp-timestamp",
  "substrate-build-script-utils",

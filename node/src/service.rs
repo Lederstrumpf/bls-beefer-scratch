@@ -9,6 +9,7 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use solochain_template_runtime::{self, opaque::Block, RuntimeApi};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
+use mmr_gadget::MmrGadget;
 use std::{sync::Arc, time::Duration};
 
 pub(crate) type FullClient = sc_service::TFullClient<
@@ -32,6 +33,7 @@ pub type Service = sc_service::PartialComponents<
 	(
 		sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 		sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
+		beefy::BeefyVoterLinks<Block>,
 		Option<Telemetry>,
 	),
 >;
@@ -80,6 +82,14 @@ pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
+	let (beefy_block_import, beefy_voter_links, beefy_rpc_links) =
+		beefy::beefy_block_import_and_links(
+			grandpa_block_import.clone(),
+			backend.clone(),
+			client.clone(),
+			config.prometheus_registry().cloned(),
+		);
+
 	let cidp_client = client.clone();
 	let import_queue =
 		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _>(ImportQueueParams {
@@ -119,7 +129,7 @@ pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (grandpa_block_import, grandpa_link, telemetry),
+		other: (grandpa_block_import, grandpa_link, beefy_voter_links, telemetry),
 	})
 }
 
@@ -129,8 +139,10 @@ pub fn new_full<
 >(
 	config: Configuration,
 ) -> Result<TaskManager, ServiceError> {
-	// stub to toggle
+	// stubs to toggle
 	let enable_beefy = true;
+	let is_offchain_indexing_enabled = true;
+
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -139,7 +151,7 @@ pub fn new_full<
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, grandpa_link, mut telemetry),
+		other: (block_import, grandpa_link, beefy_voter_links, mut telemetry),
 	} = new_partial(&config)?;
 	let prometheus_registry = config.prometheus_registry().cloned();
 
@@ -256,7 +268,7 @@ pub fn new_full<
 		task_manager: &mut task_manager,
 		transaction_pool: transaction_pool.clone(),
 		rpc_builder: rpc_extensions_builder,
-		backend,
+		backend: backend.clone(),
 		system_rpc_tx,
 		tx_handler_controller,
 		sync_service: sync_service.clone(),
@@ -278,7 +290,7 @@ pub fn new_full<
 		let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
 			StartAuraParams {
 				slot_duration,
-				client,
+				client: client.clone(),
 				select_chain,
 				block_import,
 				proposer_factory,
@@ -316,6 +328,56 @@ pub fn new_full<
 		// if the node isn't actively participating in consensus then it doesn't
 		// need a keystore, regardless of which protocol we use below.
 		let keystore = if role.is_authority() { Some(keystore_container.keystore()) } else { None };
+
+		// beefy is enabled if its notification service exists
+		if let Some(notification_service) = beefy_notification_service {
+			let justifications_protocol_name = beefy_on_demand_justifications_handler.protocol_name();
+			let network_params = beefy::BeefyNetworkParams {
+				network: Arc::new(network.clone()),
+				sync: sync_service.clone(),
+				gossip_protocol_name: beefy_gossip_proto_name,
+				justifications_protocol_name,
+				notification_service,
+				_phantom: core::marker::PhantomData::<Block>,
+			};
+			let payload_provider = beefy_primitives::mmr::MmrRootProvider::new(client.clone());
+			let beefy_params = beefy::BeefyParams {
+				client: client.clone(),
+				backend: backend.clone(),
+				payload_provider,
+				runtime: client.clone(),
+				key_store: keystore.clone(),
+				network_params,
+				// min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
+				min_block_delta: 8,
+				prometheus_registry: prometheus_registry.clone(),
+				// links: beefy_links,
+				links: beefy_voter_links,
+				on_demand_justifications_handler: beefy_on_demand_justifications_handler,
+				is_authority: role.is_authority(),
+			};
+
+			let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
+
+			// BEEFY is part of consensus, if it fails we'll bring the node down with it to make sure it
+			// is noticed.
+			task_manager
+				.spawn_essential_handle()
+				.spawn_blocking("beefy-gadget", None, gadget);
+		}
+		// When offchain indexing is enabled, MMR gadget should also run.
+		if is_offchain_indexing_enabled {
+			task_manager.spawn_essential_handle().spawn_blocking(
+				"mmr-gadget",
+				None,
+				MmrGadget::start(
+					client.clone(),
+					backend.clone(),
+					sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
+				),
+			);
+		}
+
 
 		let grandpa_config = sc_consensus_grandpa::Config {
 			// FIXME #1578 make this available through chainspec

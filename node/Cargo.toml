@@ -37,6 +37,9 @@ sc-consensus = { version = "0.39.1" }
 sc-consensus-grandpa = { version = "0.25.0" }
 sp-consensus-grandpa = { version = "19.0.0" }
 beefy = { package = "sc-consensus-beefy", version = "19.0.0" }
+beefy-primitives = { package = "sp-consensus-beefy", version = "19.0.0" }
+sp-mmr-primitives = { version = "32.0.1" }
+mmr-gadget = { version = "35.0.0" }
 sc-client-api = { version = "34.0.0" }
 sc-rpc-api = { version = "0.39.0" }
 sc-basic-authorship = { version = "0.40.0" }
