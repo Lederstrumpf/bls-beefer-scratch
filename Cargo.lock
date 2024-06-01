@@ -4804,6 +4804,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-beefy"
+version = "34.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef1a8f4f497878782988bdd7df0a825b4757921804fb7bafcc8df3b9e990c7a0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-authorship",
+ "pallet-session",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-consensus-beefy",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-beefy-mmr"
+version = "34.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3e144caa40bc9a8b2947a0de2cb5eae3e701790bf9c2105536b6943d234aa7e"
+dependencies = [
+ "array-bytes",
+ "binary-merkle-tree",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-beefy",
+ "pallet-mmr",
+ "pallet-session",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-api",
+ "sp-consensus-beefy",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-grandpa"
 version = "34.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7910,6 +7957,7 @@ dependencies = [
  "frame-try-runtime",
  "pallet-aura",
  "pallet-balances",
+ "pallet-beefy",
  "pallet-beefy-mmr",
  "pallet-grandpa",
  "pallet-mmr",
@@ -7923,6 +7971,7 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-consensus-aura",
+ "sp-consensus-beefy",
  "sp-consensus-grandpa",
  "sp-core",
  "sp-genesis-builder",
@@ -7930,6 +7979,7 @@ dependencies = [
  "sp-offchain",
  "sp-runtime",
  "sp-session",
+ "sp-staking",
  "sp-std",
  "sp-storage",
  "sp-transaction-pool",
@@ -8066,6 +8116,27 @@ dependencies = [
  "sp-inherents",
  "sp-runtime",
  "sp-timestamp",
+]
+
+[[package]]
+name = "sp-consensus-beefy"
+version = "19.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8f70758400b17ea3bd2788108434cc726a47a057b50acf5d095b02872e52797"
+dependencies = [
+ "lazy_static",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-io",
+ "sp-keystore",
+ "sp-mmr-primitives",
+ "sp-runtime",
+ "strum 0.26.2",
 ]
 
 [[package]]

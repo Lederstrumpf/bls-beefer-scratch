@@ -6,6 +6,11 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_consensus_beefy::{
+    ecdsa_crypto::AuthorityId as BeefyId,
+    mmr::{BeefyDataProvider, MmrLeafVersion},
+};
+use sp_core::H256;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::traits::Keccak256;
 use sp_runtime::{
@@ -147,6 +152,7 @@ parameter_types! {
     pub BlockLength: frame_system::limits::BlockLength = frame_system::limits::BlockLength
         ::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
     pub const SS58Prefix: u8 = 42;
+    pub const MaxAuthorities: u32 = 100_000;
 }
 
 /// The default types are being injected by [`derive_impl`](`frame_support::derive_impl`) from
@@ -252,6 +258,34 @@ impl pallet_template::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
 }
+use sp_staking::{EraIndex, SessionIndex};
+parameter_types! {
+    pub const SessionsPerEra: SessionIndex = 6;
+    pub const BondingDuration: EraIndex = 28;
+}
+
+parameter_types! {
+    pub BeefySetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
+}
+
+impl pallet_beefy::Config for Runtime {
+    type BeefyId = BeefyId;
+    type MaxAuthorities = MaxAuthorities;
+    type MaxNominators = ConstU32<0>;
+    type MaxSetIdSessionEntries = BeefySetIdSessionEntries;
+    type OnNewValidatorSet = BeefyMmrLeaf;
+    type WeightInfo = ();
+
+    type KeyOwnerProof = sp_core::Void;
+    type EquivocationReportSystem = ();
+}
+
+impl pallet_beefy_mmr::Config for Runtime {
+    type LeafVersion = LeafVersion;
+    type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
+    type LeafExtra = H256;
+    type BeefyDataProvider = ParaHeadsRootProvider;
+}
 
 impl pallet_mmr::Config for Runtime {
     const INDEXING_PREFIX: &'static [u8] = mmr::INDEXING_PREFIX;
@@ -274,50 +308,68 @@ mod mmr {
     pub type Hash = <Hashing as sp_runtime::traits::Hash>::Output;
 }
 
-// Create the runtime by composing the FRAME pallets that were previously configured.
-#[frame_support::runtime]
-mod runtime {
-    #[runtime::runtime]
-    #[runtime::derive(
-        RuntimeCall,
-        RuntimeEvent,
-        RuntimeError,
-        RuntimeOrigin,
-        RuntimeFreezeReason,
-        RuntimeHoldReason,
-        RuntimeSlashReason,
-        RuntimeLockId,
-        RuntimeTask
-    )]
-    pub struct Runtime;
+parameter_types! {
+    /// Version of the produced MMR leaf.
+    ///
+    /// The version consists of two parts;
+    /// - `major` (3 bits)
+    /// - `minor` (5 bits)
+    ///
+    /// `major` should be updated only if decoding the previous MMR Leaf format from the payload
+    /// is not possible (i.e. backward incompatible change).
+    /// `minor` should be updated if fields are added to the previous MMR Leaf, which given SCALE
+    /// encoding does not prevent old leafs from being decoded.
+    ///
+    /// Hence we expect `major` to be changed really rarely (think never).
+    /// See [`MmrLeafVersion`] type documentation for more details.
+    pub LeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
+}
 
-    #[runtime::pallet_index(0)]
-    pub type System = frame_system;
+/// A BEEFY data provider that merkelizes all the parachain heads at the current block
+/// (sorted by their parachain id).
+pub struct ParaHeadsRootProvider;
+impl BeefyDataProvider<H256> for ParaHeadsRootProvider {
+    fn extra_data() -> H256 {
+        H256::default()
+        // let mut para_heads: Vec<(u32, Vec<u8>)> = Paras::parachains()
+        //     .into_iter()
+        //     .filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
+        //     .collect();
+        // para_heads.sort_by_key(|k| k.0);
+        // binary_merkle_tree::merkle_root::<mmr::Hashing, _>(
+        //     para_heads.into_iter().map(|pair| pair.encode()),
+        // )
+        // .into()
+    }
+}
 
-    #[runtime::pallet_index(1)]
-    pub type Timestamp = pallet_timestamp;
+construct_runtime! {
+    pub enum Runtime
+    {
+        // Basic stuff; balances is uncallable initially.
+        System: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>} = 0,
 
-    #[runtime::pallet_index(2)]
-    pub type Aura = pallet_aura;
+        // Aura must be before session.
+        Aura: pallet_aura::{Pallet, Storage, Config<T>, } = 2,
 
-    #[runtime::pallet_index(3)]
-    pub type Grandpa = pallet_grandpa;
+        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 3,
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 5,
+        TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>} = 32,
 
-    #[runtime::pallet_index(4)]
-    pub type Balances = pallet_balances;
+        // BEEFY Bridges support.
+        Beefy: pallet_beefy::{Pallet, Call, Storage, Config<T>, ValidateUnsigned} = 200,
+        // MMR leaf construction must be before session in order to have leaf contents
+        // refer to block<N-1> consistently. see substrate issue #11797 for details.
+        Mmr: pallet_mmr::{Pallet, Storage} = 201,
+        BeefyMmrLeaf: pallet_beefy_mmr::{Pallet, Storage} = 202,
 
-    #[runtime::pallet_index(5)]
-    pub type TransactionPayment = pallet_transaction_payment;
+        // Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 9,
+        Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config<T>, Event, ValidateUnsigned} = 11,
 
-    #[runtime::pallet_index(6)]
-    pub type Sudo = pallet_sudo;
+        Template: pallet_template::{Pallet, Call, Storage, Event<T>} = 254,
 
-    // Include the custom logic from the pallet-template in the runtime.
-    #[runtime::pallet_index(7)]
-    pub type TemplateModule = pallet_template;
-
-    #[runtime::pallet_index(8)]
-    pub type Mmr = pallet_mmr;
+        Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>} = 255,
+    }
 }
 
 /// The address format for describing accounts.

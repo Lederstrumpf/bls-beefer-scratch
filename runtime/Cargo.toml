@@ -34,6 +34,8 @@ frame-executive = { version = "34.0.0", default-features = false }
 pallet-aura = { version = "33.0.0", default-features = false }
 pallet-balances = { version = "35.0.0", default-features = false }
 pallet-grandpa = { version = "34.0.0", default-features = false }
+pallet-beefy = { version = "34.0.0", default-features = false }
+pallet-beefy-mmr = { version = "34.0.0", default-features = false }
 pallet-mmr = { version = "33.0.0", default-features = false }
 pallet-sudo = { version = "34.0.0", default-features = false }
 pallet-timestamp = { version = "33.0.0", default-features = false }
@@ -44,7 +46,9 @@ sp-api = { version = "32.0.0", default-features = false }
 sp-block-builder = { version = "32.0.0", default-features = false }
 sp-consensus-aura = { version = "0.38.0", default-features = false, features = ["serde"] }
 sp-consensus-grandpa = { version = "19.0.0", default-features = false, features = ["serde"] }
+sp-consensus-beefy = { version = "19.0.0", default-features = false, features = ["serde"] }
 sp-core = { version = "33.0.1", default-features = false, features = ["serde"] }
+sp-staking = { version = "32.0.0", default-features = false, features = ["serde"] }
 sp-inherents = { version = "32.0.0", default-features = false }
 sp-offchain = { version = "32.0.0", default-features = false }
 sp-runtime = { version = "37.0.0", default-features = false, features = ["serde"] }
@@ -87,6 +91,8 @@ std = [
 	"pallet-aura/std",
 	"pallet-balances/std",
 	"pallet-grandpa/std",
+	"pallet-beefy/std",
+	"pallet-beefy-mmr/std",
 	"pallet-mmr/std",
 	"pallet-sudo/std",
 	"pallet-template/std",
