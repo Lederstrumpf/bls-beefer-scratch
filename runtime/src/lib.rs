@@ -6,8 +6,9 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_consensus_beefy as beefy_primitives;
 use sp_consensus_beefy::{
-    ecdsa_crypto::AuthorityId as BeefyId,
+    ecdsa_crypto::{AuthorityId as BeefyId, Signature as BeefySignature},
     mmr::{BeefyDataProvider, MmrLeafVersion},
 };
 use sp_core::H256;
@@ -665,6 +666,102 @@ impl_runtime_apis! {
 
         fn preset_names() -> Vec<sp_genesis_builder::PresetId> {
             vec![]
+        }
+    }
+
+    impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+        fn beefy_genesis() -> Option<BlockNumber> {
+            // Beefy::genesis_block()
+            None
+        }
+
+        fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
+            Beefy::validator_set()
+        }
+
+        fn submit_report_equivocation_unsigned_extrinsic(
+            equivocation_proof: beefy_primitives::DoubleVotingProof<
+                BlockNumber,
+            BeefyId,
+            BeefySignature,
+            >,
+            key_owner_proof: beefy_primitives::OpaqueKeyOwnershipProof,
+        ) -> Option<()> {
+            None
+            // let key_owner_proof = key_owner_proof.decode()?;
+
+            // Beefy::submit_unsigned_equivocation_report(
+            // 	equivocation_proof,
+            // 	key_owner_proof,
+            // )
+        }
+
+        fn generate_key_ownership_proof(
+            _set_id: beefy_primitives::ValidatorSetId,
+            authority_id: BeefyId,
+        ) -> Option<beefy_primitives::OpaqueKeyOwnershipProof> {
+            use codec::Encode;
+
+            // Historical::prove((beefy_primitives::KEY_TYPE, authority_id))
+            //     .map(|p| p.encode())
+            //     .map(beefy_primitives::OpaqueKeyOwnershipProof::new)
+            None
+        }
+    }
+
+    impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
+        fn mmr_root() -> Result<mmr::Hash, mmr::Error> {
+            Ok(Mmr::mmr_root())
+        }
+
+        fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
+            Ok(Mmr::mmr_leaves())
+        }
+
+        fn generate_proof(
+            block_numbers: Vec<BlockNumber>,
+            best_known_block_number: Option<BlockNumber>,
+        ) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::LeafProof<mmr::Hash>), mmr::Error> {
+            Mmr::generate_proof(block_numbers, best_known_block_number).map(
+                |(leaves, proof)| {
+                    (
+                        leaves
+                            .into_iter()
+                            .map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf))
+                            .collect(),
+                        proof,
+                    )
+                },
+            )
+        }
+
+        fn verify_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::LeafProof<mmr::Hash>)
+                        -> Result<(), mmr::Error>
+        {
+            let leaves = leaves.into_iter().map(|leaf|
+                                                leaf.into_opaque_leaf()
+                                                .try_decode()
+                                                .ok_or(mmr::Error::Verify)).collect::<Result<Vec<mmr::Leaf>, mmr::Error>>()?;
+            Mmr::verify_leaves(leaves, proof)
+        }
+
+        fn verify_proof_stateless(
+            root: mmr::Hash,
+            leaves: Vec<mmr::EncodableOpaqueLeaf>,
+            proof: mmr::LeafProof<mmr::Hash>
+        ) -> Result<(), mmr::Error> {
+            let nodes = leaves.into_iter().map(|leaf|mmr::DataOrHash::Data(leaf.into_opaque_leaf())).collect();
+            pallet_mmr::verify_leaves_proof::<mmr::Hashing, _>(root, nodes, proof)
+        }
+    }
+
+    impl pallet_beefy_mmr::BeefyMmrApi<Block, Hash> for RuntimeApi {
+        fn authority_set_proof() -> beefy_primitives::mmr::BeefyAuthoritySet<Hash> {
+            BeefyMmrLeaf::authority_set_proof()
+        }
+
+        fn next_authority_set_proof() -> beefy_primitives::mmr::BeefyNextAuthoritySet<Hash> {
+            BeefyMmrLeaf::next_authority_set_proof()
         }
     }
 }
