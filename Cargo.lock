@@ -6637,6 +6637,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "sc-consensus-beefy"
+version = "19.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4800134697fa5913275969e684ce709d0d73b3cb9d28824b07c4bf2e86bf204c"
+dependencies = [
+ "array-bytes",
+ "async-channel",
+ "async-trait",
+ "fnv",
+ "futures",
+ "log",
+ "parity-scale-codec",
+ "parking_lot 0.12.3",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-network",
+ "sc-network-gossip",
+ "sc-network-sync",
+ "sc-network-types 0.11.0",
+ "sc-utils",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-beefy",
+ "sp-core",
+ "sp-crypto-hashing",
+ "sp-keystore",
+ "sp-runtime",
+ "substrate-prometheus-endpoint",
+ "thiserror",
+ "tokio",
+ "wasm-timer",
+]
+
+[[package]]
 name = "sc-consensus-grandpa"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7918,6 +7955,7 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sc-consensus-aura",
+ "sc-consensus-beefy",
  "sc-consensus-grandpa",
  "sc-executor",
  "sc-network",

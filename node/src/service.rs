@@ -129,6 +129,8 @@ pub fn new_full<
 >(
 	config: Configuration,
 ) -> Result<TaskManager, ServiceError> {
+	// stub to toggle
+	let enable_beefy = true;
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -139,12 +141,14 @@ pub fn new_full<
 		transaction_pool,
 		other: (block_import, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
+	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let mut net_config = sc_network::config::FullNetworkConfiguration::<
 		Block,
 		<Block as sp_runtime::traits::Block>::Hash,
 		N,
 	>::new(&config.network);
+	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
 	let metrics = N::register_notification_metrics(config.prometheus_registry());
 
 	let peer_store_handle = net_config.peer_store_handle();
@@ -156,9 +160,36 @@ pub fn new_full<
 		sc_consensus_grandpa::grandpa_peers_set_config::<_, N>(
 			grandpa_protocol_name.clone(),
 			metrics.clone(),
-			peer_store_handle,
+			Arc::clone(&peer_store_handle),
 		);
 	net_config.add_notification_protocol(grandpa_protocol_config);
+
+	let beefy_gossip_proto_name =
+		beefy::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
+	// `beefy_on_demand_justifications_handler` is given to `beefy-gadget` task to be run,
+	// while `beefy_req_resp_cfg` is added to `config.network.request_response_protocols`.
+	let (beefy_on_demand_justifications_handler, beefy_req_resp_cfg) =
+		beefy::communication::request_response::BeefyJustifsRequestHandler::new::<_, N>(
+			&genesis_hash,
+			config.chain_spec.fork_id(),
+			client.clone(),
+			prometheus_registry.clone(),
+		);
+	let beefy_notification_service = match enable_beefy {
+		false => None,
+		true => {
+			let (beefy_notification_config, beefy_notification_service) =
+				beefy::communication::beefy_peers_set_config::<_, N>(
+					beefy_gossip_proto_name.clone(),
+					metrics.clone(),
+					Arc::clone(&peer_store_handle),
+				);
+
+			net_config.add_notification_protocol(beefy_notification_config);
+			net_config.add_request_response_protocol(beefy_req_resp_cfg);
+			Some(beefy_notification_service)
+		},
+	};
 
 	let warp_sync = Arc::new(sc_consensus_grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
@@ -206,7 +237,6 @@ pub fn new_full<
 	let backoff_authoring_blocks: Option<()> = None;
 	let name = config.network.node_name.clone();
 	let enable_grandpa = !config.disable_grandpa;
-	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
