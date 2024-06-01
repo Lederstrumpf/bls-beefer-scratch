@@ -7,6 +7,7 @@ use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_runtime::traits::Keccak256;
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, One, Verify},
@@ -252,6 +253,27 @@ impl pallet_template::Config for Runtime {
     type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_mmr::Config for Runtime {
+    const INDEXING_PREFIX: &'static [u8] = mmr::INDEXING_PREFIX;
+    type Hashing = Keccak256;
+    // type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
+    type OnNewRoot = ();
+    type WeightInfo = ();
+    // type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
+    type LeafData = ();
+    type BlockHashProvider = pallet_mmr::DefaultBlockHashProvider<Runtime>;
+}
+
+/// MMR helper types.
+mod mmr {
+    use super::Runtime;
+    pub use pallet_mmr::primitives::*;
+
+    pub type Leaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
+    pub type Hashing = <Runtime as pallet_mmr::Config>::Hashing;
+    pub type Hash = <Hashing as sp_runtime::traits::Hash>::Output;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[frame_support::runtime]
 mod runtime {
@@ -293,6 +315,9 @@ mod runtime {
     // Include the custom logic from the pallet-template in the runtime.
     #[runtime::pallet_index(7)]
     pub type TemplateModule = pallet_template;
+
+    #[runtime::pallet_index(8)]
+    pub type Mmr = pallet_mmr;
 }
 
 /// The address format for describing accounts.

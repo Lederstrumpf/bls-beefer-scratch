@@ -34,6 +34,7 @@ frame-executive = { version = "34.0.0", default-features = false }
 pallet-aura = { version = "33.0.0", default-features = false }
 pallet-balances = { version = "35.0.0", default-features = false }
 pallet-grandpa = { version = "34.0.0", default-features = false }
+pallet-mmr = { version = "33.0.0", default-features = false }
 pallet-sudo = { version = "34.0.0", default-features = false }
 pallet-timestamp = { version = "33.0.0", default-features = false }
 pallet-transaction-payment = { version = "34.0.0", default-features = false }
@@ -86,6 +87,7 @@ std = [
 	"pallet-aura/std",
 	"pallet-balances/std",
 	"pallet-grandpa/std",
+	"pallet-mmr/std",
 	"pallet-sudo/std",
 	"pallet-template/std",
 	"pallet-timestamp/std",
